@@ -1,0 +1,21 @@
+name: example-shell
+description: An example shell plugin for testing
+type: shell
+version: 1.0.0
+commands:
+  hello:
+    description: Say hello
+    usage: Say hello to someone
+    options:
+      - name: name
+        short: n
+        description: Name to say hello to
+        value: "World"
+  goodbye:
+    description: Say goodbye
+    usage: Say goodbye to someone
+    options:
+      - name: name
+        short: n
+        description: Name to say goodbye to
+        value: "Friend"

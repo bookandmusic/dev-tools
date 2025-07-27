@@ -1,0 +1,10 @@
+---
+- name: echo message
+  hosts: localhost
+  gather_facts: false
+  vars:
+    message: "{{ message }}"
+  tasks:
+    - name: Ping the target host
+      ansible.builtin.debug:
+        msg: "Hello {{ message }}!"
