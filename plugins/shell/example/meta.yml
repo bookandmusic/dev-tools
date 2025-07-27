@@ -1,0 +1,19 @@
+name: greetings
+description: A set of scripts to greet or say goodbye.
+type: shell
+version: 1.0.0
+commands:
+  hello:
+    description: Print a greeting message.
+    usage: Print a greeting message. If no name is provided, defaults to "friend".
+    options:
+      - name: name
+        description: The name of the person to greet.
+        value: "friend"
+  bye:
+    description: Print a farewell message.
+    usage: Print a farewell message. If no name is provided, defaults to "friend".
+    options:
+      - name: name
+        description: The name of the person to say goodbye to.
+        value: "friend"

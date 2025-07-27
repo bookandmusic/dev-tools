@@ -1,0 +1,41 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - gosec
+    - unused
+    - revive
+    - gosimple
+    - goconst
+    - gocyclo
+    - dupl
+    - misspell
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  dupl:
+    threshold: 100
+  misspell:
+    locale: US
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+
+issues:
+  exclude-dirs:
+    - vendor
+    - third_party
+  exclude-rules:
+    - linters:
+        - errcheck
+      text: "defer .* Close.* error"
+  max-same-issues: 3
+  max-issues-per-linter: 50
