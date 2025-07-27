@@ -1,0 +1,19 @@
+name: example-ansible
+description: An example ansible plugin for testing
+type: ansible
+version: 1.0.0
+commands:
+  ping:
+    description: Ping a host
+    usage: Ping a host to check connectivity
+  info:
+    description: Get system information
+    usage: Gather basic system information
+  echo:
+    description: Echo message
+    usage: Echo message
+    options:
+      - name: message
+        short: m
+        description: message to echo
+        value: "World"

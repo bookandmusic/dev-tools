@@ -1,0 +1,39 @@
+name: ohmyzsh-setup
+description: A set of scripts to install, update, and uninstall oh-my-zsh along with commonly used plugins
+type: shell
+version: 1.0.0
+commands:
+  install:
+    description: Install oh-my-zsh and set up common plugins
+    usage: Install oh-my-zsh with commonly used plugins and configure settings
+    options:
+      - name: github-proxy
+        short: p
+        description: GitHub proxy to be used for downloading plugins
+        value: ""
+      - name: install-dir
+        short: d
+        description: Directory where oh-my-zsh will be installed
+        value: "$HOME/.oh-my-zsh"
+
+  update:
+    description: Update oh-my-zsh and installed plugins
+    usage: Update oh-my-zsh and the plugins installed in the configuration
+    options:
+      - name: github-proxy
+        short: p
+        description: GitHub proxy to be used for downloading plugins
+        value: ""
+      - name: install-dir
+        short: d
+        description: Directory where oh-my-zsh is installed
+        value: "$HOME/.oh-my-zsh"
+
+  uninstall:
+    description: Uninstall oh-my-zsh and remove configuration files
+    usage: Uninstall oh-my-zsh and remove .zshrc and oh-my-zsh directory
+    options:
+      - name: install-dir
+        short: d
+        description: Directory where oh-my-zsh is installed
+        value: "$HOME/.oh-my-zsh"

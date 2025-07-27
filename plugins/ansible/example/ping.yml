@@ -1,0 +1,10 @@
+---
+- name: Ping a host
+  hosts: localhost
+  gather_facts: false
+  vars:
+    target_host: "{{ host | default('localhost') }}"
+  tasks:
+    - name: Ping the target host
+      ansible.builtin.ping:
+      delegate_to: "{{ target_host }}"

@@ -1,0 +1,47 @@
+name: docker-setup
+description: A set of scripts to install, update, and uninstall Docker along with plugins.
+type: shell
+version: 1.0.0
+commands:
+  install:
+    description: Install Docker and its plugins.
+    usage: Install Docker and configure related settings.
+    options:
+      - name: install-dir
+        description: Directory where Docker will be installed
+        value: "/usr/local/docker"
+      - name: plugin-dir
+        description: Directory where Docker plugins will be stored
+        value: "$HOME/.docker/plugins"
+      - name: github-proxy
+        description: GitHub proxy to be used for downloading Docker and plugins
+        value: ""
+      - name: proxy
+        description: Docker service proxy (HTTP_PROXY/HTTPS_PROXY), supports multiple, separated by commas.
+        value: ""
+      - name: registry-mirrors
+        description: Docker registry mirror acceleration address, supports multiple, separated by commas.
+        value: ""
+  update:
+    description: Update Docker and installed plugins.
+    usage: Update Docker and its associated plugins.
+    options:
+      - name: install-dir
+        description: Directory where Docker will be installed
+        value: "/usr/local/docker"
+      - name: plugin-dir
+        description: Directory where Docker plugins will be stored
+        value: "$HOME/.docker/plugins"
+      - name: github-proxy
+        description: GitHub proxy to be used for downloading Docker and plugins
+        value: ""
+  uninstall:
+    description: Uninstall Docker and remove associated configuration files.
+    usage: Uninstall Docker, remove systemd services, and clean up configuration files.
+    options:
+      - name: install-dir
+        description: Directory where Docker will be installed
+        value: "/usr/local/docker"
+      - name: plugin-dir
+        description: Directory where Docker plugins will be stored
+        value: "$HOME/.docker/plugins"
