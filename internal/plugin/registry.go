@@ -20,9 +20,7 @@ type PluginApp interface {
 	Command() *cli.Command
 }
 
-var (
-	pluginApps []PluginApp
-)
+var pluginApps []PluginApp
 
 // RegisterPluginApp 注册插件实现
 func RegisterPluginApp(app PluginApp) {
@@ -62,4 +60,5 @@ func LoadPluginsToRefistry() {
 	})
 	// go插件
 	RegisterPluginApp(&goPlugin.GoPlugin{})
+	RegisterPluginApp(&goPlugin.DockerPlugin{})
 }
