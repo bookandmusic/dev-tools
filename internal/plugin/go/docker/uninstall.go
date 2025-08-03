@@ -15,7 +15,7 @@ func (i *installer) Uninstall() error {
 	// Step 2: 删除 systemd 服务文件
 	i.ui.Info("[%d/5] Removing systemd service file from %s...", step, i.cfg.ServicePath)
 	step++
-	if err := utils.RemoveBinaries(i.cfg.ServicePath, []string{"docker.service"}); err != nil {
+	if err := utils.RemoveFilesWithProgress(i.cfg.ServicePath, []string{"docker.service"}, i.ui); err != nil {
 		i.ui.Warning("Failed to remove docker.service: %v", err)
 	} else {
 		i.ui.Success("Removed docker.service from %s", i.cfg.ServicePath)
@@ -35,7 +35,7 @@ func (i *installer) Uninstall() error {
 		"docker", "dockerd", "docker-init", "docker-proxy",
 		"docker-runc", "docker-containerd", "docker-containerd-shim",
 	}
-	if err := utils.RemoveBinaries(i.cfg.BinDir, binaries); err != nil {
+	if err := utils.RemoveFilesWithProgress(i.cfg.BinDir, binaries, i.ui); err != nil {
 		i.ui.Warning("Failed to remove Docker binaries: %v", err)
 	} else {
 		i.ui.Success("Docker binaries removed from %s", i.cfg.BinDir)
@@ -45,7 +45,7 @@ func (i *installer) Uninstall() error {
 	i.ui.Info("[%d/5] Removing Docker CLI plugins from %s...", step, i.cfg.PluginDir)
 	step++
 	plugins := []string{"docker-compose", "docker-buildx"}
-	if err := utils.RemoveBinaries(i.cfg.PluginDir, plugins); err != nil {
+	if err := utils.RemoveFilesWithProgress(i.cfg.PluginDir, plugins, i.ui); err != nil {
 		i.ui.Warning("Failed to remove CLI plugins: %v", err)
 	} else {
 		i.ui.Success("Docker CLI plugins removed from %s", i.cfg.PluginDir)

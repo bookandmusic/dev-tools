@@ -28,7 +28,7 @@ func (i *installer) installDocker() error {
 
 	// 2. 解压
 	i.ui.Info("Extracting Docker archive...")
-	if err := utils.ExtractTarGz(tarFilePath, tmpDir); err != nil {
+	if err := utils.ExtractTarGzWithFileLogs(tarFilePath, tmpDir, i.ui); err != nil {
 		i.ui.Error("Failed to extract Docker archive: %v", err)
 		return err
 	}
@@ -59,7 +59,7 @@ func (i *installer) installDocker() error {
 
 	// 5. 拷贝到安装目录
 	i.ui.Info("Copying Docker binaries to %s...", i.cfg.BinDir)
-	if err := utils.CopyDir(dockerTmpDir, i.cfg.BinDir); err != nil {
+	if err := utils.CopyDirWithProgress(dockerTmpDir, i.cfg.BinDir, i.ui); err != nil {
 		i.ui.Error("Failed to copy Docker binaries: %v", err)
 		return err
 	}

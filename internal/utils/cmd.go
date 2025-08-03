@@ -9,18 +9,13 @@ import (
 
 // RunCommand runs the command with real-time stdout/stderr to terminal.
 func RunCommand(name string, args ...string) error {
-	_, err := RunCommandWithCapture(name, args...)
+	_, err := runCommandInternal(name, args, true, true)
 	return err
 }
 
 // RunCommandCapture runs the command and returns combined stdout+stderr without printing to terminal.
 func RunCommandCapture(name string, args ...string) (string, error) {
 	return runCommandInternal(name, args, false, true)
-}
-
-// RunCommandWithCapture runs the command, prints to terminal AND captures output.
-func RunCommandWithCapture(name string, args ...string) (string, error) {
-	return runCommandInternal(name, args, true, true)
 }
 
 // Internal executor
