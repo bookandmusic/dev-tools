@@ -6,32 +6,97 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+
+	"github.com/bookandmusic/dev-tools/internal/ui"
 )
 
-// AddPathToUserEnv ensures the dir is in PATH both for current session and future shells.
-func AddPathToUserEnv(dir string) error {
-	if dir == "" {
-		return fmt.Errorf("empty directory path")
+// AddEnvToUserProfile ensures the given envVars are added to the user profile and current process.
+// - Supports ~, $VAR, and relative paths
+// - If key is PATH, the value is prepended to PATH instead of overriding
+// - Writes lines to the user's shell profile (~/.bashrc, ~/.zshrc, or ~/.profile)
+// - Updates current process environment as well
+func AddEnvToUserProfile(envVars map[string]string) error {
+	if len(envVars) == 0 {
+		return fmt.Errorf("no environment variables provided")
 	}
 
-	absDir := os.ExpandEnv(dir)
-	if strings.HasPrefix(absDir, "~") {
-		usr, _ := user.Current()
-		absDir = filepath.Join(usr.HomeDir, absDir[1:])
+	profileFile := DetectProfileFile()
+
+	// 1️⃣ 生成写入 profile 的行
+	var lines []string
+	for k, v := range envVars {
+		absValue := ExpandHomeAndEnv(v)
+
+		if k == "PATH" {
+			// PATH 特殊处理：前置 PATH
+			lines = append(lines, fmt.Sprintf("export PATH=\"%s:$PATH\"", absValue))
+		} else {
+			// 普通环境变量
+			lines = append(lines, fmt.Sprintf("export %s=%s", k, absValue))
+		}
 	}
 
-	// 更新 shell profile
-	profileFile := detectProfileFile()
-	if err := ensureProfileHasPath(profileFile, absDir); err != nil {
+	// 写入 profile（幂等）
+	if err := ensureProfileHasLines(profileFile, lines); err != nil {
 		return err
 	}
 
-	// 更新当前环境变量
-	return AddToCurrentEnvPath(absDir)
+	// 2️⃣ 更新当前进程环境
+	for k, v := range envVars {
+		absValue := ExpandHomeAndEnv(v)
+		if k == "PATH" {
+			// prepend PATH 并去重
+			if err := AddToCurrentEnvPath(absValue); err != nil {
+				return err
+			}
+		} else {
+			os.Setenv(k, absValue)
+		}
+	}
+
+	return nil
 }
 
-// detectProfileFile returns the most likely profile file for current shell.
-func detectProfileFile() string {
+func ExpandHomeAndEnv(path string) string {
+	path = os.ExpandEnv(path)
+	if strings.HasPrefix(path, "~") {
+		usr, _ := user.Current()
+		path = filepath.Join(usr.HomeDir, path[1:])
+	}
+	abs, err := filepath.Abs(path)
+	if err == nil {
+		path = abs
+	}
+	return path
+}
+
+func ensureProfileHasLines(profileFile string, lines []string) error {
+	content, _ := os.ReadFile(profileFile)
+	updated := false
+
+	f, err := os.OpenFile(profileFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("open profile file: %w", err)
+	}
+	defer f.Close()
+
+	for _, line := range lines {
+		if !strings.Contains(string(content), line) {
+			if _, err := f.WriteString("\n# Added by dev-tools\n" + line + "\n"); err != nil {
+				return fmt.Errorf("write to profile: %w", err)
+			}
+			updated = true
+		}
+	}
+
+	if updated {
+		ui.Console.Info("Updated shell profile:", profileFile)
+	}
+	return nil
+}
+
+// detectProfileFile returns the most likely shell profile file for the current user.
+func DetectProfileFile() string {
 	shell := filepath.Base(os.Getenv("SHELL"))
 	homeDir, _ := os.UserHomeDir()
 
@@ -45,58 +110,26 @@ func detectProfileFile() string {
 	}
 }
 
-// ensureProfileHasPath appends PATH export if not exists.
-func ensureProfileHasPath(profileFile, absDir string) error {
-	content, _ := os.ReadFile(profileFile)
-	if strings.Contains(string(content), absDir) {
-		return nil // 已存在
-	}
-
-	exportLine := fmt.Sprintf("\n# Added by dev-tools\nexport PATH=\"%s:$PATH\"\n", absDir)
-	f, err := os.OpenFile(profileFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return fmt.Errorf("open profile file: %w", err)
-	}
-	defer f.Close()
-
-	if _, err := f.WriteString(exportLine); err != nil {
-		return fmt.Errorf("write to profile: %w", err)
-	}
-	return nil
-}
-
-// AddToCurrentEnvPath prepends dir to the current process PATH if it's not already present.
-func AddToCurrentEnvPath(dir string) error {
-	if dir == "" {
-		return fmt.Errorf("empty dir")
-	}
-
-	// 获取当前的 PATH 环境变量
-	currentPath := os.Getenv("PATH")
-	newPath := prependToPath(currentPath, dir)
-
-	// 只有在路径不同的情况下才更新 PATH
-	if currentPath != newPath {
-		return os.Setenv("PATH", newPath)
-	}
-
-	return nil
-}
-
-// BuildEnvPath builds a default PATH with binDir prepended if not already present.
-func BuildEnvPath(binDir string) string {
-	defaultPath := "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	return prependToPath(defaultPath, binDir)
-}
-
-// prependToPath prepends the given dir to the provided PATH if not already present.
 func prependToPath(currentPath, dir string) string {
-	// 如果路径已经存在于当前的 PATH 中，则不再添加
-	paths := strings.Split(currentPath, ":")
-	if len(paths) > 0 && paths[0] == dir {
-		return currentPath
+	if currentPath == "" {
+		return dir
 	}
-
-	// 将新的路径插入到 PATH 前面
+	paths := strings.Split(currentPath, ":")
+	for _, p := range paths {
+		if p == dir {
+			return currentPath // 已存在
+		}
+	}
 	return fmt.Sprintf("%s:%s", dir, currentPath)
+}
+
+// BuildEnvPath 获取当前 PATH，并将 binDir 放在最前面（如果不存在的话）。
+func BuildEnvPath(binDir string) string {
+	currentPath := os.Getenv("PATH")
+	return prependToPath(currentPath, binDir)
+}
+
+func AddToCurrentEnvPath(dir string) error {
+	newPath := BuildEnvPath(dir)
+	return os.Setenv("PATH", newPath)
 }

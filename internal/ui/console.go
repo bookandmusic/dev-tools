@@ -8,6 +8,12 @@ import (
 
 type ConsoleUI struct{}
 
+var Console UI
+
+func NewConsoleUI() {
+	Console = ConsoleUI{}
+}
+
 var (
 	infoColor    = color.New(color.FgCyan).SprintFunc()
 	successColor = color.New(color.FgGreen).SprintFunc()

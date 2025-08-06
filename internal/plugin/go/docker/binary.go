@@ -66,7 +66,9 @@ func (i *installer) installDocker() error {
 
 	// 6. 添加 PATH
 	i.ui.Info("Adding %s to user PATH...", i.cfg.BinDir)
-	if err := utils.AddPathToUserEnv(i.cfg.BinDir); err != nil {
+	if err := utils.AddEnvToUserProfile(map[string]string{
+		"PATH": i.cfg.BinDir,
+	}); err != nil {
 		i.ui.Error("Failed to add path to user environment: %v", err)
 		return err
 	}

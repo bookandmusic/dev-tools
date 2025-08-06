@@ -9,8 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bookandmusic/dev-tools/internal/ui"
 	progressbar "github.com/schollz/progressbar/v3"
+
+	"github.com/bookandmusic/dev-tools/internal/ui"
 )
 
 func ExtractTarGzWithProgress(tarGzPath, targetDir string, console ui.UI) error {
@@ -303,7 +304,7 @@ func CopyDirWithProgress(src, dst string, console ui.UI) error {
 		}
 
 		// 复制文件
-		if err := copyFile(srcFile, dstFile); err != nil {
+		if err := CopyFile(srcFile, dstFile); err != nil {
 			return err
 		}
 
@@ -315,7 +316,7 @@ func CopyDirWithProgress(src, dst string, console ui.UI) error {
 }
 
 // copyFile 按块复制文件并保留权限
-func copyFile(srcFile, dstFile string) error {
+func CopyFile(srcFile, dstFile string) error {
 	src, err := os.Open(srcFile)
 	if err != nil {
 		return err

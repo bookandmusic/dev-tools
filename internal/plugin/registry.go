@@ -7,6 +7,7 @@ import (
 
 	cli "github.com/urfave/cli/v2"
 
+	"github.com/bookandmusic/dev-tools/internal/config"
 	"github.com/bookandmusic/dev-tools/internal/plugin/ansible"
 	"github.com/bookandmusic/dev-tools/internal/plugin/base"
 	goPlugin "github.com/bookandmusic/dev-tools/internal/plugin/go"
@@ -37,28 +38,38 @@ func GetRegisteredPlugins() []*cli.Command {
 }
 
 func LoadPluginsToRefistry() {
-	// 外部插件
-	pluginDir := "plugins"
-	_ = filepath.Walk(pluginDir, func(path string, info os.FileInfo, err error) error {
-		meta, meatErr := base.LoadPluginMeta(path, info)
-		if meatErr != nil {
+	pluginDir := "plugins" // 默认的相对路径
+	if config.Global != nil && config.Global.RootDir != "" {
+		// 从配置文件的 RootDir 获取 plugins 目录
+		pluginDir = filepath.Join(config.Global.RootDir, "plugins")
+	}
+
+	// 检查插件目录是否存在
+	info, err := os.Stat(pluginDir)
+	if err == nil && info.IsDir() {
+		// 遍历插件目录
+		_ = filepath.Walk(pluginDir, func(path string, info os.FileInfo, err error) error {
+			meta, metaErr := base.LoadPluginMeta(path, info)
+			if metaErr != nil {
+				return nil
+			}
+			switch meta.Type {
+			case "shell":
+				RegisterPluginApp(shell.NewShellPlugin(
+					*meta,
+					path,
+				))
+			case "ansible":
+				RegisterPluginApp(ansible.NewAnsiblePlugin(
+					*meta,
+					path,
+				))
+			}
 			return nil
-		}
-		switch meta.Type {
-		case "shell":
-			RegisterPluginApp(shell.NewShellPlugin(
-				*meta,
-				path,
-			))
-		case "ansible":
-			RegisterPluginApp(ansible.NewAnsiblePlugin(
-				*meta,
-				path,
-			))
-		}
-		return nil
-	})
-	// go插件
-	RegisterPluginApp(&goPlugin.GoPlugin{})
+		})
+	}
+
+	// 注册内置插件
 	RegisterPluginApp(&goPlugin.DockerPlugin{})
+	RegisterPluginApp(&goPlugin.InstallPlugin{})
 }
