@@ -5,38 +5,38 @@ import (
 	"os/user"
 	"path/filepath"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v3"
 
 	"github.com/bookandmusic/dev-tools/internal/config"
 	"github.com/bookandmusic/dev-tools/internal/ui"
 	"github.com/bookandmusic/dev-tools/internal/utils"
 )
 
-type InstallParams struct {
-	InstallDir string
+type SelfManager struct {
+	Config *config.GlobalConfig
+	UI     ui.UI
 }
 
-type SelfManager struct {
-	Config        *config.GlobalConfig
-	UI            ui.UI
-	InstallParams *InstallParams
+func NewSelfManager(cfg *config.GlobalConfig, ui ui.UI) *SelfManager {
+	return &SelfManager{
+		Config: cfg,
+		UI:     ui,
+	}
 }
 
 func (s *SelfManager) Uninstall() error {
 	return nil
 }
 
-func (s *SelfManager) Install() error {
-	var installDir string
-	if s.InstallParams == nil {
-		installDir = "~/.tools"
-	} else if s.InstallParams.InstallDir == "" {
-		installDir = "~/.tools"
+func (s *SelfManager) Install(installDir string) error {
+	var rootAbsDir string
+	if installDir != "" {
+		rootAbsDir = utils.ExpandAbsDir(installDir)
 	} else {
-		installDir = s.InstallParams.InstallDir
+		rootAbsDir = s.Config.Common.RootDir
 	}
-
-	rootAbsDir := utils.ExpandAbsDir(installDir)
+	cfgMgr := config.NewManager()
+	cfgMgr.UpdateRootDir(s.Config, rootAbsDir)
 	pluginDir := filepath.Join(rootAbsDir, "plugins")
 	binDir := filepath.Join(rootAbsDir, "bin")
 
@@ -44,7 +44,7 @@ func (s *SelfManager) Install() error {
 
 	// 1️⃣ 创建安装目录
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		s.UI.Error("failed to create install directory: %w", err)
+		s.UI.Error("failed to create install directory: %s", err)
 		return err
 	}
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
@@ -53,9 +53,9 @@ func (s *SelfManager) Install() error {
 	}
 
 	// 2️⃣ 生成默认 YAML 配置文件
-	configFile := filepath.Join(rootAbsDir, "config.yaml")
+	configFile := filepath.Join(rootAbsDir, "config.yml")
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		data, err := yaml.Marshal(config.GenerateDefaultConfig(installDir))
+		data, err := yaml.Marshal(s.Config)
 		if err != nil {
 			s.UI.Error("failed to marshal config: %s", err)
 			return err
@@ -85,7 +85,8 @@ func (s *SelfManager) Install() error {
 
 	// 4️⃣ 复制插件文件
 	// 判断当前路径是否有 plugins 目录
-	srcPlugins := filepath.Join(s.Config.Common.RootDir, "plugins")
+	currentPath := filepath.Dir(execPath)
+	srcPlugins := filepath.Join(currentPath, "plugins")
 	if info, err := os.Stat(srcPlugins); err == nil && info.IsDir() {
 		if err := utils.CopyDirWithProgress(srcPlugins, pluginDir, s.UI); err != nil {
 			s.UI.Error("Failed to copy plugins: %s", err)
@@ -114,6 +115,7 @@ func (s *SelfManager) Install() error {
 	envFile := utils.GetProfilePath(shell, homeDir)
 	err = utils.AddEnvToEnvFile(map[string]string{
 		"DEV_TOOLS_HOME": rootAbsDir,
+		"PATH":           binDir,
 	}, envFile)
 	if err != nil {
 		s.UI.Error("Failed to setup environment variables: %v", err)
@@ -121,5 +123,9 @@ func (s *SelfManager) Install() error {
 	}
 
 	s.UI.Info("Installation complete.\nPlease restart your shell or run 'source %s' to apply changes.\n", envFile)
+	return nil
+}
+
+func (s *SelfManager) Update() error {
 	return nil
 }

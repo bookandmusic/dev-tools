@@ -67,8 +67,6 @@ func LoadPluginsToRefistry(rootDir string, ui ui.UI, cfg *config.GlobalConfig) {
 		})
 	}
 	// 注册内置插件
-	RegisterPluginApp(adapter.NewInstallPlugin(ui, cfg))
-}
-
-func RegistryPlugins() {
+	RegisterPluginApp(adapter.NewSelfPlugin(ui, cfg))
+	RegisterPluginApp(adapter.NewOhMyzshPlugin(ui, cfg))
 }

@@ -7,7 +7,7 @@ check_and_install_tool() {
         case "$1" in
             "goimports-reviser")
                 echo "[INFO] 安装 goimports-reviser..."
-                go install github.com/incu6us/goimports-reviser/v2@latest
+                go install -v github.com/incu6us/goimports-reviser/v3@latest
                 ;;
             "gofumpt")
                 echo "[INFO] 安装 gofumpt..."

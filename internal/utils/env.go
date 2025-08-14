@@ -118,7 +118,6 @@ func AddToCurrentEnvPath(dir string) error {
 	return os.Setenv("PATH", newPath)
 }
 
-
 func GetCurrentUser() (*user.User, error) {
 	// 使用 os/user 获取当前用户信息
 	currentUser, err := user.Current()

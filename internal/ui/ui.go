@@ -1,11 +1,11 @@
 package ui
 
+// UI 定义日志输出接口
 type UI interface {
-	Info(format string, a ...any)
-	Success(format string, a ...any)
-	Warning(format string, a ...any)
-	Error(format string, a ...any)
-	Note(format string, a ...any)
-	Println(format string, a ...any)
-	Debug(format string, a ...any)
+	Info(msg string, args ...interface{})
+	Success(msg string, args ...interface{})
+	Warning(msg string, args ...interface{})
+	Error(msg string, args ...interface{})
+	Debug(msg string, args ...interface{})
+	Println(msg string, args ...interface{})
 }

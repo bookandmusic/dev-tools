@@ -6,12 +6,8 @@ import (
 	"github.com/fatih/color"
 )
 
-type ConsoleUI struct {
-	debug bool
-}
-
 func NewConsoleUI(debug bool) UI {
-	return &ConsoleUI{debug: debug}
+	return &ConsoleUI{debugEnabled: debug}
 }
 
 var (
@@ -22,32 +18,33 @@ var (
 	noteColor    = color.New(color.FgWhite).Add(color.Italic).SprintFunc()
 )
 
-func (c ConsoleUI) Info(format string, a ...any) {
-	fmt.Println(infoColor("[INFO] "), fmt.Sprintf(format, a...))
+// ConsoleUI 控制台输出实现
+type ConsoleUI struct {
+	debugEnabled bool
 }
 
-func (c ConsoleUI) Success(format string, a ...any) {
-	fmt.Println(successColor("[ OK ] "), fmt.Sprintf(format, a...))
+func (c ConsoleUI) Info(msg string, args ...interface{}) {
+	fmt.Printf(infoColor("ℹ️ "+msg+"\n"), args...)
 }
 
-func (c ConsoleUI) Warning(format string, a ...any) {
-	fmt.Println(warnColor("[WARN] "), fmt.Sprintf(format, a...))
+func (c ConsoleUI) Success(msg string, args ...interface{}) {
+	fmt.Printf(successColor("⚠️ "+msg+"\n"), args...)
 }
 
-func (c ConsoleUI) Error(format string, a ...any) {
-	fmt.Println(errorColor("[FAIL] "), fmt.Sprintf(format, a...))
+func (c ConsoleUI) Warning(msg string, args ...interface{}) {
+	fmt.Printf(warnColor("⚠️ "+msg+"\n"), args...)
 }
 
-func (c ConsoleUI) Note(format string, a ...any) {
-	fmt.Println(noteColor("[NOTE] "), fmt.Sprintf(format, a...))
+func (c ConsoleUI) Error(msg string, args ...interface{}) {
+	fmt.Printf(errorColor("❌ "+msg+"\n"), args...)
 }
 
-func (c ConsoleUI) Println(format string, a ...any) {
-	fmt.Println(fmt.Sprintf(format, a...))
-}
-
-func (c ConsoleUI) Debug(format string, a ...any) {
-	if c.debug {
-		fmt.Println(noteColor("[DEBUG] "), fmt.Sprintf(format, a...))
+func (c ConsoleUI) Debug(msg string, args ...interface{}) {
+	if c.debugEnabled {
+		fmt.Printf(noteColor("🐛 "+msg+"\n"), args...)
 	}
+}
+
+func (c ConsoleUI) Println(msg string, args ...interface{}) {
+	fmt.Printf(msg+"\n", args...)
 }
