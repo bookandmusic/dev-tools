@@ -9,7 +9,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/bookandmusic/dev-tools/internal/config"
 	"github.com/bookandmusic/dev-tools/internal/manager/soft"
+	"github.com/bookandmusic/dev-tools/internal/ui"
 	"github.com/bookandmusic/dev-tools/internal/utils"
 )
 
@@ -29,19 +31,71 @@ func (d *DockerManager) Install(ctx context.Context) error {
 	env := params.Env
 	version := cfg.Version
 
+	// 检查sudo权限
+	if err = d.checkSudoPermissions(ctx, ui, env); err != nil {
+		return err
+	}
+
+	// 获取版本和架构信息
+	arch, version, err := d.getVersionAndArch(ui, global, version)
+	if err != nil {
+		return err
+	}
+
+	// 获取插件版本
+	pluginVersions, err := d.getPluginVersions(ui, global, arch)
+	if err != nil {
+		return err
+	}
+
+	// 下载和安装Docker
+	installPath, binPath, err := d.downloadAndInstallDocker(ctx, ui, env, global, cfg, version, arch)
+	if err != nil {
+		return err
+	}
+
+	// 生成配置文件
+	if err = d.generateConfigFiles(ctx, ui, env, binPath, cfg); err != nil {
+		return err
+	}
+
+	// 安装插件
+	if err := d.installPlugins(ctx, ui, env, global, installPath, pluginVersions); err != nil {
+		return err
+	}
+
+	// 启动服务
+	if err = d.startDockerService(ctx, ui, env, binPath); err != nil {
+		return err
+	}
+
+	// 更新环境变量
+	if err = d.updateEnvironment(ui, global, binPath); err != nil {
+		return err
+	}
+
+	// 显示成功信息
+	d.showSuccessMessage(ui)
+
+	return nil
+}
+
+func (d *DockerManager) checkSudoPermissions(ctx context.Context, ui ui.UI, env map[string]string) error {
 	ui.Info("检测sudo权限")
-	if err = utils.RunCommand(ctx, ui, env, "sudo", "-v"); err != nil {
+	if err := utils.RunCommand(ctx, ui, env, "sudo", "-v"); err != nil {
 		ui.Error("获取sudo权限失败")
 		return err
 	}
 	ui.Info("尝试停止正在运行的Docker服务...")
 	_ = utils.RunCommand(ctx, ui, env, "sudo", "systemctl", "stop", "docker")
+	return nil
+}
 
-	// ========= 第一步：获取版本 & 架构 =========
+func (d *DockerManager) getVersionAndArch(ui ui.UI, global *config.CommonConfig, version string) (utils.ArchType, string, error) {
 	arch := utils.DetectArch()
 	if arch == utils.ArchUnknown {
 		ui.Error("工具只支持AMD64、AARCH64, 不支持当前主机架构: %s", runtime.GOARCH)
-		return errors.New("unknown architecture")
+		return "", "", errors.New("unknown architecture")
 	}
 
 	if version == "" {
@@ -49,22 +103,24 @@ func (d *DockerManager) Install(ctx context.Context) error {
 		versionStr, err := utils.GetLatestReleaseTag(ui, "moby/moby", global.GithubProxy, global.HttpProxy)
 		if err != nil {
 			ui.Error("获取Docker最新版本失败")
-			return err
+			return "", "", err
 		}
 		version = strings.TrimPrefix(versionStr, "v")
 	}
 	ui.Info("准备安装 Docker %s, 架构: %s", version, arch)
+	return arch, version, nil
+}
 
-	// 获取插件版本
+func (d *DockerManager) getPluginVersions(ui ui.UI, global *config.CommonConfig, arch utils.ArchType) (map[string]interface{}, error) {
 	composeVersion, err := utils.GetLatestReleaseTag(ui, "docker/compose", global.GithubProxy, global.HttpProxy)
 	if err != nil {
 		ui.Error("获取docker-compose最新版本失败")
-		return err
+		return nil, err
 	}
 	buildxVersion, err := utils.GetLatestReleaseTag(ui, "docker/buildx", global.GithubProxy, global.HttpProxy)
 	if err != nil {
 		ui.Error("获取docker-buildx最新版本失败")
-		return err
+		return nil, err
 	}
 	var buildxArch string
 	switch arch {
@@ -75,7 +131,15 @@ func (d *DockerManager) Install(ctx context.Context) error {
 	}
 	ui.Info("插件版本: compose=%s, buildx=%s (%s)", composeVersion, buildxVersion, buildxArch)
 
-	// ========= 第二步：下载 & 安装Docker =========
+	return map[string]interface{}{
+		"composeVersion": composeVersion,
+		"buildxVersion":  buildxVersion,
+		"buildxArch":     buildxArch,
+		"arch":           arch,
+	}, nil
+}
+
+func (d *DockerManager) downloadAndInstallDocker(ctx context.Context, ui ui.UI, env map[string]string, global *config.CommonConfig, cfg *config.DockerConfig, version string, arch utils.ArchType) (string, string, error) {
 	installPath := cfg.InstallDir
 	if installPath == "" {
 		installPath = path.Join(global.RootDir, "docker")
@@ -83,30 +147,33 @@ func (d *DockerManager) Install(ctx context.Context) error {
 	installPath = utils.ExpandAbsDir(installPath)
 	binPath := path.Join(installPath, "bin")
 	ui.Info("安装目录 %s ...", binPath)
-	if err = utils.CreateIfNotExists(ctx, ui, env, binPath, true); err != nil {
-		return err
+	if err := utils.CreateIfNotExists(ctx, ui, env, binPath, true); err != nil {
+		return "", "", err
 	}
 
 	tmpPath := path.Join(global.CacheDir, "docker", version)
 	tarFile := fmt.Sprintf("docker-%s.tgz", version)
 	tarFilePath := path.Join(tmpPath, tarFile)
 	if err := d.downloadIfNotExists(ui, arch, tarFilePath); err != nil {
-		return err
+		return "", "", err
 	}
 	ui.Info("解压文件:%s 到 %s", tarFile, binPath)
-	if err = utils.ExtractTarGzWithProgress(ui, tarFilePath, binPath, 1); err != nil {
+	if err := utils.ExtractTarGzWithProgress(ui, tarFilePath, binPath, 1); err != nil {
 		ui.Error("解压Docker失败")
-		return err
+		return "", "", err
 	}
-	if err = d.chmodFiles(ctx, ui, env, binPath); err != nil {
-		return err
+	if err := d.chmodFiles(ctx, ui, env, binPath); err != nil {
+		return "", "", err
 	}
 
-	// ========= 第三步：生成配置文件 =========
-	if err = d.generateSystemdService(ctx, ui, env, binPath); err != nil {
+	return installPath, binPath, nil
+}
+
+func (d *DockerManager) generateConfigFiles(ctx context.Context, ui ui.UI, env map[string]string, binPath string, cfg *config.DockerConfig) error {
+	if err := d.generateSystemdService(ctx, ui, env, binPath); err != nil {
 		return err
 	}
-	if err = d.mergeJSONToFile(ctx, ui, env, "/etc/docker/daemon.json", map[string]interface{}{
+	if err := d.mergeJSONToFile(ctx, ui, env, "/etc/docker/daemon.json", map[string]interface{}{
 		"fixed-cidr-v6":       "fd00::/80",
 		"insecure-registries": []string{},
 		"ipv6":                true,
@@ -118,79 +185,82 @@ func (d *DockerManager) Install(ctx context.Context) error {
 	}, true); err != nil {
 		return err
 	}
+	return nil
+}
 
-	// ========= 第四步：安装插件 =========
+func (d *DockerManager) installPlugins(ctx context.Context, ui ui.UI, env map[string]string, global *config.CommonConfig, installPath string, pluginVersions map[string]interface{}) error {
 	pluginDir := path.Join(installPath, "plugins")
 	if err := utils.CreateIfNotExists(ctx, ui, env, pluginDir, true); err != nil {
 		ui.Error("创建插件目录失败")
 		return err
 	}
 
-	// helper function
-	installPlugin := func(name, version, pluginFile, baseUrl string) error {
-		cachePath := path.Join(global.CacheDir, "docker", fmt.Sprintf("%s-%s", name, version))
-		if err := utils.CreateIfNotExists(ctx, ui, env, cachePath, false); err != nil {
-			return err
-		}
+	composeVersion := pluginVersions["composeVersion"].(string)
+	buildxVersion := pluginVersions["buildxVersion"].(string)
+	buildxArch := pluginVersions["buildxArch"].(string)
+	arch := pluginVersions["arch"].(string)
 
-		cachedFilePath := path.Join(cachePath, pluginFile)
-		if _, err := os.Stat(cachedFilePath); os.IsNotExist(err) {
-			// 缓存不存在，下载
-			downloadUrl := fmt.Sprintf("%s/%s/%s", baseUrl, version, pluginFile)
-			ui.Info("下载插件 %s 到缓存: %s", name, cachedFilePath)
-			if global.HttpProxy == "" {
-				downloadUrl = utils.ProxyURL(ui, global.GithubProxy, downloadUrl)
-			}
-			if err := utils.DownloadFileWithProgress(downloadUrl, cachedFilePath, ui, global.HttpProxy); err != nil {
-				return err
-			}
-		} else {
-			ui.Info("缓存已存在插件 %s, 跳过下载", name)
-		}
-
-		// 从缓存复制到插件目录
-		destPath := path.Join(pluginDir, name)
-		ui.Info("复制插件 %s 到 %s", name, destPath)
-		if err := utils.CopyFile(cachedFilePath, destPath); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	// compose
-	if err := installPlugin(
-		"docker-compose",
-		composeVersion,
+	// 安装compose插件
+	if err := d.installPlugin(ctx, ui, env, global, pluginDir, "docker-compose", composeVersion,
 		fmt.Sprintf("docker-compose-linux-%s", arch),
-		"https://github.com/docker/compose/releases/download",
-	); err != nil {
+		"https://github.com/docker/compose/releases/download"); err != nil {
 		return err
 	}
 
-	// buildx
-	if err := installPlugin(
-		"docker-buildx",
-		buildxVersion,
+	// 安装buildx插件
+	if err := d.installPlugin(ctx, ui, env, global, pluginDir, "docker-buildx", buildxVersion,
 		fmt.Sprintf("buildx-%s.linux-%s", buildxVersion, buildxArch),
-		"https://github.com/docker/buildx/releases/download",
-	); err != nil {
+		"https://github.com/docker/buildx/releases/download"); err != nil {
 		return err
 	}
 
 	// 更新 ~/.docker/config.json
-	if err = d.mergeJSONToFile(ctx, ui, env, utils.ExpandAbsDir("~/.docker/config.json"), map[string]interface{}{
+	if err := d.mergeJSONToFile(ctx, ui, env, utils.ExpandAbsDir("~/.docker/config.json"), map[string]interface{}{
 		"cliPluginsExtraDirs": []string{pluginDir},
 	}, false); err != nil {
 		return err
 	}
-	if err = d.chmodFiles(ctx, ui, env, pluginDir); err != nil {
+	if err := d.chmodFiles(ctx, ui, env, pluginDir); err != nil {
 		return err
 	}
 
-	// ========= 第五步：启动服务 =========
+	return nil
+}
+
+func (d *DockerManager) installPlugin(ctx context.Context, ui ui.UI, env map[string]string, global *config.CommonConfig, pluginDir, name, version, pluginFile, baseUrl string) error {
+	cachePath := path.Join(global.CacheDir, "docker", fmt.Sprintf("%s-%s", name, version))
+	if err := utils.CreateIfNotExists(ctx, ui, env, cachePath, false); err != nil {
+		return err
+	}
+
+	cachedFilePath := path.Join(cachePath, pluginFile)
+	if _, err := os.Stat(cachedFilePath); os.IsNotExist(err) {
+		// 缓存不存在，下载
+		downloadUrl := fmt.Sprintf("%s/%s/%s", baseUrl, version, pluginFile)
+		ui.Info("下载插件 %s 到缓存: %s", name, cachedFilePath)
+		if global.HttpProxy == "" {
+			downloadUrl = utils.ProxyURL(ui, global.GithubProxy, downloadUrl)
+		}
+		if err := utils.DownloadFileWithProgress(downloadUrl, cachedFilePath, ui, global.HttpProxy); err != nil {
+			return err
+		}
+	} else {
+		ui.Info("缓存已存在插件 %s, 跳过下载", name)
+	}
+
+	// 从缓存复制到插件目录
+	destPath := path.Join(pluginDir, name)
+	ui.Info("复制插件 %s 到 %s", name, destPath)
+	if err := utils.CopyFile(cachedFilePath, destPath); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *DockerManager) startDockerService(ctx context.Context, ui ui.UI, env map[string]string, binPath string) error {
 	ui.Info("启动服务...")
-	if err = utils.RunCommand(
+	if err := utils.RunCommand(
 		ctx, ui, env,
 		"bash", "-c",
 		"sudo systemctl daemon-reload && sudo systemctl enable docker && sudo systemctl start docker",
@@ -199,27 +269,33 @@ func (d *DockerManager) Install(ctx context.Context) error {
 		return err
 	}
 	ui.Info("检测docker信息...")
-	if err = utils.RunCommand(ctx, ui, map[string]string{"PATH": binPath}, "docker", "info"); err != nil {
+	if err := utils.RunCommand(ctx, ui, map[string]string{"PATH": binPath}, "docker", "info"); err != nil {
 		ui.Error("等待服务启动成功失败")
 		return err
 	}
+	return nil
+}
 
+func (d *DockerManager) updateEnvironment(ui ui.UI, global *config.CommonConfig, binPath string) error {
 	envFile := path.Join(global.RootDir, ".env")
-	err = utils.UpdateEnvFile(envFile, map[string]string{
+	err := utils.UpdateEnvFile(envFile, map[string]string{
 		"PATH": binPath,
 	}, "add")
 	if err != nil {
 		ui.Error("添加环境变量失败")
 		return err
 	}
-	ui.Success("成功安装Docker: %s", installPath)
+	return nil
+}
+
+func (d *DockerManager) showSuccessMessage(ui ui.UI) {
+	ui.Success("成功安装Docker")
 	currentUser, _ := utils.GetCurrentUser()
 	homeDir, shell, _ := utils.GetUserHomeAndShell(currentUser.Username)
 	profilePath := utils.GetProfilePath(shell, homeDir)
 	ui.Success("安装完成！请执行以下操作：")
 	ui.Info("1. 重新打开终端")
 	ui.Info("2. 运行: source %s", profilePath)
-	return nil
 }
 
 func (d *DockerManager) Uninstall(ctx context.Context) error {

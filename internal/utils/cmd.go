@@ -28,8 +28,8 @@ func RunCommand(ctx context.Context, u ui.UI, env map[string]string, name string
 	u.Info(name + " " + strings.Join(args, " "))
 
 	for k, v := range env {
-		if k == "PATH" {
-			os.Setenv("PATH", fmt.Sprintf("%s:%s", v, os.Getenv("PATH")))
+		if k == envPath {
+			os.Setenv(envPath, fmt.Sprintf("%s:%s", v, os.Getenv(envPath)))
 		} else {
 			os.Setenv(k, v)
 		}

@@ -5,8 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/bookandmusic/dev-tools/cmd/factor/adapter"
+	"github.com/bookandmusic/dev-tools/cmd/factor/loader"
+	"github.com/bookandmusic/dev-tools/cmd/plugin"
 	"github.com/bookandmusic/dev-tools/internal/config"
-	"github.com/bookandmusic/dev-tools/internal/plugin"
 	"github.com/bookandmusic/dev-tools/internal/ui"
 	"github.com/bookandmusic/dev-tools/internal/utils"
 )
@@ -59,9 +61,10 @@ func init() {
 	cfg.Common.Debug = debug
 	rootPath := utils.ExpandAbsDir(cfgMgr.DetermineRootDir(cfg.Common.RootDir, rootDir, rootDirChange))
 	cfgMgr.SetDefaults(cfg, rootPath)
-	plugin.LoadPluginsToRefistry(workdir, ui, cfg)
-	plugins := plugin.GetRegisteredPlugins()
-	for _, p := range plugins {
+	adapter.LoadPluginsFromAdapter(ui, cfg)
+	loader.LoadPluginsFromLoader(rootDir, ui)
+	cmds := plugin.Commands(ui, cfg, workdir)
+	for _, p := range cmds {
 		rootCmd.AddCommand(p)
 	}
 }

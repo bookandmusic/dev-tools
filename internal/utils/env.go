@@ -27,68 +27,15 @@ func UpdateEnvFile(envFile string, vars map[string]string, mode string) error {
 
 	switch mode {
 	case "add":
-		for k, v := range vars {
-			if k == "PATH" {
-				existing := envMap["PATH"]
-				if existing == "" {
-					envMap[k] = v
-					continue
-				}
-
-				// 如果自定义路径已经在 PATH 中，就跳过
-				found := false
-				paths := strings.Split(existing, splitFlag)
-				for _, p := range paths {
-					if p == v {
-						found = true
-						break
-					}
-				}
-				if !found {
-					envMap["PATH"] = v + splitFlag + existing
-				}
-			} else {
-				envMap[k] = v
-			}
-		}
-
+		handleAddMode(envMap, vars, splitFlag)
 	case "remove":
-		for k, v := range vars {
-			if k == "PATH" {
-				existing := envMap["PATH"]
-				if existing == "" {
-					continue
-				}
-				paths := strings.Split(existing, splitFlag)
-				newPaths := make([]string, 0, len(paths))
-				for _, p := range paths {
-					if p != v && p != "$PATH" {
-						newPaths = append(newPaths, p)
-					}
-				}
-				// 如果删除后为空，不写 PATH
-				if len(newPaths) > 0 {
-					envMap["PATH"] = strings.Join(newPaths, splitFlag)
-				} else {
-					delete(envMap, "PATH")
-				}
-			} else {
-				delete(envMap, k)
-			}
-		}
-
+		handleRemoveMode(envMap, vars, splitFlag)
 	default:
 		return fmt.Errorf("invalid mode: %s (expected 'add' or 'remove')", mode)
 	}
 
 	// 末尾追加 $PATH，避免重复
-	if p, ok := envMap["PATH"]; ok && !strings.HasSuffix(p, "$PATH") {
-		if strings.HasSuffix(p, splitFlag) {
-			envMap["PATH"] = p + "$PATH"
-		} else {
-			envMap["PATH"] = p + splitFlag + "$PATH"
-		}
-	}
+	appendPathIfNeeded(envMap, splitFlag)
 
 	// 写回文件
 	if err := godotenv.Write(envMap, envFile); err != nil {
@@ -106,6 +53,82 @@ func UpdateEnvFile(envFile string, vars map[string]string, mode string) error {
 	}
 
 	return nil
+}
+
+// handleAddMode 处理添加模式
+func handleAddMode(envMap, vars map[string]string, splitFlag string) {
+	for k, v := range vars {
+		if k == envPath {
+			addPathVariable(envMap, v, splitFlag)
+		} else {
+			envMap[k] = v
+		}
+	}
+}
+
+// addPathVariable 添加PATH变量
+func addPathVariable(envMap map[string]string, newPath, splitFlag string) {
+	existing := envMap[envPath]
+	if existing == "" {
+		envMap[envPath] = newPath
+		return
+	}
+
+	// 如果自定义路径已经在 PATH 中，就跳过
+	found := false
+	paths := strings.Split(existing, splitFlag)
+	for _, p := range paths {
+		if p == newPath {
+			found = true
+			break
+		}
+	}
+	if !found {
+		envMap[envPath] = newPath + splitFlag + existing
+	}
+}
+
+// handleRemoveMode 处理删除模式
+func handleRemoveMode(envMap, vars map[string]string, splitFlag string) {
+	for k, v := range vars {
+		if k == envPath {
+			removePathVariable(envMap, v, splitFlag)
+		} else {
+			delete(envMap, k)
+		}
+	}
+}
+
+// removePathVariable 删除PATH变量中的指定路径
+func removePathVariable(envMap map[string]string, pathToRemove, splitFlag string) {
+	existing := envMap[envPath]
+	if existing == "" {
+		return
+	}
+	paths := strings.Split(existing, splitFlag)
+	newPaths := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if p != pathToRemove && p != "$PATH" {
+			newPaths = append(newPaths, p)
+		}
+	}
+	// 如果删除后为空，不写 PATH
+	if len(newPaths) > 0 {
+		envMap[envPath] = strings.Join(newPaths, splitFlag)
+	} else {
+		delete(envMap, envPath)
+	}
+}
+
+// appendPathIfNeeded 在PATH末尾追加$PATH
+func appendPathIfNeeded(envMap map[string]string, splitFlag string) {
+	if p, ok := envMap[envPath]; ok && !strings.HasSuffix(p, "$PATH") {
+		if strings.HasSuffix(p, splitFlag) {
+			envMap[envPath] = p + "$PATH"
+		} else {
+			envMap[envPath] = p + splitFlag + "$PATH"
+		}
+	}
 }
 
 // MergeJSON 返回合并后的 JSON 字符串，不写文件

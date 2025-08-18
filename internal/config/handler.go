@@ -159,6 +159,27 @@ func (m *Manager) SetDefaults(cfg *GlobalConfig, rootDir string) {
 		rootDir = "~/.config"
 	}
 	rootDir = utils.ExpandAbsDir(rootDir)
+
+	// 设置 Common 默认值
+	m.setCommonDefaults(cfg, rootDir)
+
+	// 设置 Ansible 默认值
+	m.setAnsibleDefaults(cfg)
+
+	// 设置 Python 默认值
+	m.setPythonDefaults(cfg)
+
+	// 设置 Go 默认值
+	m.setGoDefaults(cfg)
+
+	// 设置 OhMyZsh 默认值
+	m.setOhMyzshDefaults(cfg)
+
+	// 设置 Docker 默认值
+	m.setDockerDefaults(cfg)
+}
+
+func (m *Manager) setCommonDefaults(cfg *GlobalConfig, rootDir string) {
 	// 确保 Common 配置存在
 	if cfg.Common == nil {
 		cfg.Common = &CommonConfig{}
@@ -172,7 +193,9 @@ func (m *Manager) SetDefaults(cfg *GlobalConfig, rootDir string) {
 	if cfg.Common.CacheDir == "" {
 		cfg.Common.CacheDir = filepath.Join(cfg.Common.RootDir, "cache")
 	}
+}
 
+func (m *Manager) setAnsibleDefaults(cfg *GlobalConfig) {
 	// 设置 Ansible 默认值
 	if cfg.Ansible == nil {
 		cfg.Ansible = &AnsibleConfig{}
@@ -186,7 +209,9 @@ func (m *Manager) SetDefaults(cfg *GlobalConfig, rootDir string) {
 	if cfg.Ansible.AnsibleDir == "" {
 		cfg.Ansible.AnsibleDir = filepath.Join(cfg.Ansible.BaseDir, "ansible")
 	}
+}
 
+func (m *Manager) setPythonDefaults(cfg *GlobalConfig) {
 	// 设置 Python 默认值
 	if cfg.Python == nil {
 		cfg.Python = &LangConfig{}
@@ -194,7 +219,9 @@ func (m *Manager) SetDefaults(cfg *GlobalConfig, rootDir string) {
 	if cfg.Python.BaseDir == "" {
 		cfg.Python.BaseDir = filepath.Join(cfg.Common.RootDir, "python")
 	}
+}
 
+func (m *Manager) setGoDefaults(cfg *GlobalConfig) {
 	// 设置 Go 默认值
 	if cfg.Go == nil {
 		cfg.Go = &LangConfig{}
@@ -202,7 +229,9 @@ func (m *Manager) SetDefaults(cfg *GlobalConfig, rootDir string) {
 	if cfg.Go.BaseDir == "" {
 		cfg.Go.BaseDir = filepath.Join(cfg.Common.RootDir, "go")
 	}
+}
 
+func (m *Manager) setOhMyzshDefaults(cfg *GlobalConfig) {
 	// 设置 OhMyZsh 默认值
 	if cfg.OhMyzsh == nil {
 		cfg.OhMyzsh = &OhMyzshConfig{}
@@ -233,7 +262,9 @@ func (m *Manager) SetDefaults(cfg *GlobalConfig, rootDir string) {
 			},
 		}
 	}
+}
 
+func (m *Manager) setDockerDefaults(cfg *GlobalConfig) {
 	// 设置 Docker 默认值
 	if cfg.Docker == nil {
 		cfg.Docker = &DockerConfig{}

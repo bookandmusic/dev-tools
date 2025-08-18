@@ -62,22 +62,10 @@ func ExtractTarGzWithProgress(console ui.UI, tarGzPath, targetDir string, strip 
 	tr := tar.NewReader(gzr)
 
 	// 先扫描统计解压大小
-	var totalSize int64
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			fmt.Println("")
-			return err
-		}
-		if hdr.Typeflag == tar.TypeReg {
-			relPath := stripPathComponents(hdr.Name, strip)
-			if relPath != "" {
-				totalSize += hdr.Size
-			}
-		}
+	totalSize, err := scanArchive(tr, strip)
+	if err != nil {
+		fmt.Println("")
+		return err
 	}
 	fmt.Println("") // 扫描结束换行
 
@@ -112,8 +100,34 @@ func ExtractTarGzWithProgress(console ui.UI, tarGzPath, targetDir string, strip 
 	)
 
 	buf := make([]byte, 32*1024)
+	return extractFiles(tr2, buf, cleanTargetDir, strip, extractBar)
+}
+
+// scanArchive 扫描归档文件并计算总大小
+func scanArchive(tr *tar.Reader, strip int) (int64, error) {
+	var totalSize int64
 	for {
-		hdr, err := tr2.Next()
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, err
+		}
+		if hdr.Typeflag == tar.TypeReg {
+			relPath := stripPathComponents(hdr.Name, strip)
+			if relPath != "" {
+				totalSize += hdr.Size
+			}
+		}
+	}
+	return totalSize, nil
+}
+
+// extractFiles 提取文件
+func extractFiles(tr *tar.Reader, buf []byte, targetDir string, strip int, bar *progressbar.ProgressBar) error {
+	for {
+		hdr, err := tr.Next()
 		if err == io.EOF {
 			break
 		}
@@ -127,7 +141,7 @@ func ExtractTarGzWithProgress(console ui.UI, tarGzPath, targetDir string, strip 
 			continue
 		}
 
-		destPath := filepath.Join(cleanTargetDir, relPath)
+		destPath := filepath.Join(targetDir, relPath)
 		cleanDestPath := filepath.Clean(destPath)
 
 		// 判断是否目录
@@ -141,52 +155,60 @@ func ExtractTarGzWithProgress(console ui.UI, tarGzPath, targetDir string, strip 
 		}
 
 		// 普通文件
-		if err := os.MkdirAll(filepath.Dir(cleanDestPath), 0o700); err != nil {
-			return err
-		}
-
-		// 如果已经是目录，先删掉
-		if fi, err := os.Stat(cleanDestPath); err == nil && fi.IsDir() {
-			if rmErr := os.RemoveAll(cleanDestPath); rmErr != nil {
-				return rmErr
-			}
-		}
-
-		out, err := os.Create(cleanDestPath)
-		if err != nil {
-			return err
-		}
-
-		for {
-			n, err := tr2.Read(buf)
-			if n > 0 {
-				if _, wErr := out.Write(buf[:n]); wErr != nil {
-					out.Close()
-					return wErr
-				}
-				if err := extractBar.Add(n); err != nil {
-					out.Close()
-					return err
-				}
-			}
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				out.Close()
-				fmt.Println("")
-				return err
-			}
-		}
-
-		out.Close()
-		if err := os.Chmod(cleanDestPath, 0o700); err != nil {
+		if err := extractRegularFile(tr, buf, cleanDestPath, bar); err != nil {
 			fmt.Println("")
 			return err
 		}
 	}
 
 	fmt.Println("") // 解压完成换行
+	return nil
+}
+
+// extractRegularFile 提取普通文件
+func extractRegularFile(tr *tar.Reader, buf []byte, destPath string, bar *progressbar.ProgressBar) error {
+	// 创建目标目录
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o700); err != nil {
+		return err
+	}
+
+	// 如果已经是目录，先删掉
+	if fi, err := os.Stat(destPath); err == nil && fi.IsDir() {
+		if rmErr := os.RemoveAll(destPath); rmErr != nil {
+			return rmErr
+		}
+	}
+
+	out, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// 读取并写入文件内容
+	for {
+		n, err := tr.Read(buf)
+		if n > 0 {
+			if _, wErr := out.Write(buf[:n]); wErr != nil {
+				return wErr
+			}
+			if barErr := bar.Add(n); barErr != nil {
+				return barErr
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	// 设置文件权限
+	if err := os.Chmod(destPath, 0o700); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -4,9 +4,11 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/bookandmusic/dev-tools/internal/manager/script"
 )
 
-func CreateCommandTree(basePath string, meta PluginMeta, executor PluginExecutor) *cobra.Command {
+func CreateCommandTree(basePath string, meta *PluginMeta, executor script.PluginExecutor) *cobra.Command {
 	root := &cobra.Command{
 		Use:   meta.Name,
 		Short: meta.Description,
@@ -25,7 +27,7 @@ func CreateCommandTree(basePath string, meta PluginMeta, executor PluginExecutor
 	return root
 }
 
-func buildCommand(basePath string, pathParts []string, cmdDef Command, executor PluginExecutor) *cobra.Command {
+func buildCommand(basePath string, pathParts []string, cmdDef Command, executor script.PluginExecutor) *cobra.Command {
 	cmdName := pathParts[len(pathParts)-1]
 	cmd := &cobra.Command{
 		Use:   cmdName,
@@ -49,7 +51,7 @@ func buildCommand(basePath string, pathParts []string, cmdDef Command, executor 
 	return cmd
 }
 
-func makeRunE(scriptPath string, executor PluginExecutor) func(cmd *cobra.Command, args []string) error {
+func makeRunE(scriptPath string, executor script.PluginExecutor) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 			return executor.NotFoundError(scriptPath)
